@@ -1,0 +1,30 @@
+--------------------------------------------------------
+--  DDL for Procedure P_BONUS_EMP_FIRST_A_LAST_NAME
+--------------------------------------------------------
+set define off;
+
+  CREATE OR REPLACE EDITIONABLE PROCEDURE "HR"."P_BONUS_EMP_FIRST_A_LAST_NAME" 
+(
+  P_FIRST_NAME IN VARCHAR2 
+, P_LAST_NAME IN VARCHAR2 
+) AS     
+    v_bonus     employees.salary%type;
+    v_salary    employees.salary%type;
+    v_hire_date hr.employees.hire_date%type;
+BEGIN
+  SELECT salary, hire_date INTO
+         v_salary, v_hire_date 
+    FROM employees
+   WHERE upper(last_name) = upper(p_last_name) AND
+         upper(first_name) = upper(p_first_name); 
+  
+  v_bonus := f_calc_bonus(p_salary => v_salary,
+                          p_hire_date => v_hire_date);    
+  
+  update emp_copy set bonus = v_bonus 
+   WHERE upper(last_name) = upper(p_last_name) AND
+         upper(first_name) = upper(p_first_name); 
+    
+END P_BONUS_EMP_FIRST_A_LAST_NAME;
+
+/
