@@ -1,0 +1,100 @@
+/*
+auf Tabelle emp_copy arbeiten!
+
+folgende Werte der Tabelle als parameter übernehmen
+
+    first_name,
+    last_name,
+    salary,
+    hire_date,
+    
+anhand des first_ u last_name festestellen ob es den employee
+in der Tabelle schon gibt:
+
+wenn nein:
+    neu anlegen
+    
+wenn ja:
+    employee updaten mit den ensprechenden Feldern
+ 
+
+im updatefall, wenn das p_salary kleiner als das vorhandene ist, wird das salary 
+nicht geändert
+    
+Zusatzaufgabe:
+    department_name auch übernehmen und entsprechend eintragen    
+
++ später department name    
+    ( department_id )
+
+*/    
+
+CREATE OR REPLACE PROCEDURE P_UPSERT_EMPLOYEE 
+(
+  P_FIRST_NAME IN VARCHAR2, 
+  P_LAST_NAME IN VARCHAR2,
+  p_salary IN number,
+  p_hire_date in date,
+  p_department_name in varchar2
+) AS 
+v_employee_id   emp_copy.employee_id%type;
+v_salary        emp_copy.salary%type;
+v_count         number;
+v_department_id departments.department_id%type;
+BEGIN
+/*
+select count(employee_id) into v_count
+        from emp_copy
+        where first_name = p_first_name and
+              last_name  = p_last_name;
+
+if v_count = 1 then
+update
+else
+insert ...
+endif;
+*/
+
+select department_id into v_department_id
+  from departments 
+ where department_name = p_department_name;
+
+  begin
+      select employee_id, salary into v_employee_id, v_salary 
+        from emp_copy
+        where first_name = p_first_name and
+              last_name  = p_last_name;
+ 
+      -- we are only getting here if the previous select statement found 
+      -- something
+      
+      if p_salary > v_salary then
+        v_salary := p_salary;              
+      end if;  
+      
+      update emp_copy set 
+        salary        = v_salary, 
+        hire_date     = p_hire_date,
+        department_id = v_department_id
+      where employee_id = v_employee_id;
+  exception when no_data_found then
+      insert into emp_copy (
+        employee_id,
+        first_name,
+        last_name,
+        salary,
+        hire_date,
+        department_id
+        ) values (
+        hr_seq.nextval,
+        p_first_name,
+        p_last_name,
+        p_salary,
+        p_hire_date,
+        v_department_id
+        );
+  end;
+  
+  dbms_output.put_line(v_employee_id);
+  
+END P_UPSERT_EMPLOYEE;
