@@ -1,0 +1,45 @@
+/*
++ einen cursor über alle emp_copy wo das salary zwischen min und max_salary ist
+sortiert nach salary  
+ 
++ die differenz zwischen emps 
+
+Harrison             Bloom                          10000     
+Peter                Tucker                         10000    0
+Eleni                Zlotkey                        10500    500
+Clara                Vishney                        10500    0
+Ellen                Abel                           11000    500
+
+mit dbms_output ausgeben
+
+namen + gehalt + differenz zum vorgänger
+
+*/
+
+CREATE OR REPLACE PROCEDURE P_SALARY_DIFF 
+(
+  P_MIN_SALARY IN NUMBER 
+, P_MAX_SALARY IN NUMBER 
+) AS 
+
+ cursor c_emp(cp_min_salary emp_copy.salary%type, 
+              cp_max_salary emp_copy.salary%type) is 
+    select last_name, first_name, salary from emp_copy where 
+    salary between cp_min_salary and cp_max_salary
+    -- salary >= cp_min_salary and salary <= cp_max_salary -- gleich wie between
+    -- salary > cp_min_salary and salary < cp_max_salary   -- OHNE die Grenzen 
+    order by salary; 
+
+  v_previous_salary emp_copy.salary%type; -- := 0;
+  v_diff            emp_copy.salary%type := 0;
+BEGIN
+  
+  for r_emp in c_emp(p_min_salary, p_max_salary) loop
+    v_diff := r_emp.salary - v_previous_salary;
+    DBMS_OUTPUT.PUT_LINE(r_emp.last_name || ' ' || r_emp.salary || ' ' || v_diff);
+    v_previous_salary := r_emp.salary;
+    
+  end loop;
+  
+  
+END P_SALARY_DIFF;
