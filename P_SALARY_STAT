@@ -1,0 +1,38 @@
+/* wir wollen der procedure eine bin_size übergeben
+zb 1500) 
+
+1500 0
+3000 1
+..
+12000 5
+13500 0
+
+zuerst feststellen was das höchste Gehalt ist
+
+*/
+
+
+CREATE OR REPLACE PROCEDURE P_SALARY_STAT (
+p_bin_size number default 1000
+)
+AS 
+
+cursor c_emp(cp_min_salary emp_copy.salary%type, 
+              cp_max_salary emp_copy.salary%type) is 
+    select count(salary) c from emp_copy where 
+    salary between cp_min_salary and cp_max_salary
+    order by salary; 
+
+v_sal_max number;
+v_lower_limit number := 0;
+
+BEGIN
+
+select max(salary) into v_sal_max from emp_copy;
+while v_lower_limit <= v_sal_max loop
+    for r_sal in c_emp(v_lower_limit, v_lower_limit + p_bin_size) loop
+        DBMS_OUTPUT.PUT_LINE(v_lower_limit || ' ' || r_sal.c);
+        v_lower_limit := v_lower_limit + p_bin_size;
+    end loop;
+end loop;
+END P_SALARY_STAT;
