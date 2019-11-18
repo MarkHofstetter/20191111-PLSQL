@@ -1,3 +1,15 @@
+/*
+create or replace TYPE TYPE_RECORD_EMP_SAL AS OBJECT 
+( last_name varchar2(50),
+  salary number
+)
+
+create or replace TYPE type_table_emp_sal
+AS TABLE OF type_record_emp_sal
+
+*/
+
+
 /* soll nach page und size 
 die entsprechenden Zeilen retournieren
 
