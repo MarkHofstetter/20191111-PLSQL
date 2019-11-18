@@ -1,0 +1,44 @@
+/* soll nach page und size 
+die entsprechenden Zeilen retournieren
+
+page beginnt bei 0 
+
+bsp:
+
+page = 1 und size = 10 die eintrage 11-20
+page = 3 und size = 30 die eintrage 91 - 120 
+
+wenn zu kompliziert, dann einfach page = untere grenze und size = ober grenze
+
+*/
+
+CREATE OR REPLACE FUNCTION F_PAGE_EMPLOYEES_BY_SALARY 
+(
+  P_PAGE IN NUMBER 
+, P_SIZE IN NUMBER 
+) RETURN type_table_emp_sal AS 
+cursor c_emp_sal(p_lower number, p_upper number) is (
+select * from (
+    select rownum rn, sal_order.* from (
+        select last_name,
+               salary
+         from employees 
+        order by salary desc
+        ) sal_order
+    )
+where 
+rn > p_lower and rn <= p_upper
+);
+
+t_emp_sal type_table_emp_sal := type_table_emp_sal();
+
+BEGIN
+
+for r_emp_sal in c_emp_sal(p_page * p_size, (p_page + 1) * p_size) loop
+    t_emp_sal.extend;
+    t_emp_sal(t_emp_sal.count) := 
+       TYPE_RECORD_EMP_SAL(r_emp_sal.last_name, r_emp_sal.salary);
+end loop;
+
+  RETURN t_emp_sal;
+END F_PAGE_EMPLOYEES_BY_SALARY;
