@@ -1,0 +1,267 @@
+CREATE OR REPLACE PACKAGE PCK_EMPLOYEE AS 
+
+e_no_employee_found exception;
+pragma exception_init(e_no_employee_found, -20500);
+
+TAX_PCT number;
+STICHTAG date := to_date('2019-11-11', 'yyyy-mm-dd');
+SIGNATUR varchar2(50) := 'Some Text here';
+
+FUNCTION F_CALC_BONUS 
+(
+  P_SALARY IN NUMBER,
+  P_HIRE_DATE IN DATE
+) RETURN NUMBER;
+
+
+PROCEDURE P_UPSERT
+(
+  P_FIRST_NAME IN VARCHAR2, 
+  P_LAST_NAME IN VARCHAR2,
+  p_salary IN number,
+  p_hire_date in date,
+  p_department_name in varchar2,
+  p_employee_id out number
+);
+  
+
+PROCEDURE P_UPDATE_BONUS;
+
+function f_get_salary (
+  P_employee_id IN NUMBER  
+) RETURN NUMBER;
+
+function f_get_salary (
+  P_first_name IN emp_copy.first_name%type,
+  P_last_name IN emp_copy.last_name%type
+) RETURN NUMBER;
+
+function f_calc_tax (p_salary in emp_copy.salary%type) 
+return number;
+
+function f_incr return number;
+
+END PCK_EMPLOYEE;
+/
+
+
+CREATE OR REPLACE PACKAGE BODY PCK_EMPLOYEE AS
+
+cursor c_emp is select * from emp_copy;
+
+INCR number := 0;
+
+function f_incr return number as
+begin 
+INCR := INCR + 1;
+return INCR;
+end;
+
+/*
+create table params (name varchar2(20), val_num number, val_date date, val_char varchar2(100));
+insert into params (name, val_num) values ('TAX_PCT', 0.48);
+
+-- select * from params;
+*/
+
+function get_num_val(p_name in varchar2) 
+return number as 
+v_num number;
+begin
+    select val_num into v_num from params where name = p_name;
+    return v_num;
+end get_num_val;    
+    
+
+FUNCTION F_CALC_BONUS 
+(
+  P_SALARY IN NUMBER,
+  P_HIRE_DATE IN DATE
+) RETURN NUMBER AS 
+    v_bonus number;
+BEGIN   
+    if p_salary >= 10000 then
+        v_bonus := p_salary * 0.05;
+    elsif p_salary > 5000 then
+        v_bonus := p_salary * 0.07;
+    else 
+        v_bonus := p_salary * 0.1;
+    end if;
+    
+    if p_hire_date <= sysdate - TO_YMINTERVAL('15-0') then
+        v_bonus := v_bonus + p_salary * 0.04;
+    end if;
+    
+    v_bonus := round(v_bonus, -1);
+    return v_bonus;    
+END F_CALC_BONUS;
+
+
+
+PROCEDURE P_UPSERT
+(
+  P_FIRST_NAME IN VARCHAR2, 
+  P_LAST_NAME IN VARCHAR2,
+  p_salary IN number,
+  p_hire_date in date,
+  p_department_name in varchar2,
+  p_employee_id out number
+) AS 
+v_employee_id   emp_copy.employee_id%type;
+v_salary        emp_copy.salary%type;
+v_count         number;
+v_department_id departments.department_id%type;
+BEGIN
+
+  begin
+  select department_id into v_department_id
+        from departments 
+       where department_name = p_department_name;
+  exception when no_data_found then
+      RAISE_APPLICATION_ERROR(-20001, 'kein Department gefunden');
+  end;
+
+  begin      
+      select employee_id, salary into v_employee_id, v_salary 
+        from emp_copy
+        where first_name = p_first_name and
+              last_name  = p_last_name;
+ 
+      -- we are only getting here if the previous select statement found 
+      -- something
+      
+      if p_salary > v_salary then
+        v_salary := p_salary;              
+      end if;  
+      
+      p_employee_id := v_employee_id;
+      
+      update emp_copy set 
+        salary        = v_salary, 
+        hire_date     = p_hire_date,
+        department_id = v_department_id
+      where employee_id = v_employee_id;
+  exception when no_data_found then
+      insert into emp_copy (
+        employee_id,
+        first_name,
+        last_name,
+        salary,
+        hire_date,
+        department_id
+        ) values (
+        hr_seq.nextval,
+        p_first_name,
+        p_last_name,
+        p_salary,
+        p_hire_date,
+        v_department_id
+        ) RETURNING employee_id into p_employee_id;
+      
+      -- p_employee_id := hr_seq.currval;
+  end;
+  
+END P_UPSERT;
+
+
+PROCEDURE P_UPDATE_BONUS AS 
+
+cursor c_emp_for_update is 
+select * from emp_copy for update of bonus nowait;
+v_bonus number;
+e_row_lock exception;
+pragma exception_init (e_row_lock, -00054);
+
+v_done boolean := false;
+
+v_i number := 1;
+
+BEGIN
+while (v_done = false and v_i <=3) loop
+    begin
+      for r_emp in c_emp_for_update loop
+          v_bonus := f_calc_bonus(p_salary => r_emp.salary, p_hire_date => r_emp.hire_date);      
+             update emp_copy set bonus = v_bonus where current of c_emp_for_update;     
+      end loop;
+      v_done := true;
+    exception when e_row_lock then
+       dbms_output.put_line('lock found '|| v_i);
+       dbms_lock.sleep(3);
+       v_i := v_i + 1;
+    end;
+end loop;
+
+-- if not v_done then
+if  v_done = False then
+    raise_application_error(-20010, 'unable to aquire lock');
+else
+    dbms_output.put_line('update successful');
+end if;    
+
+END P_UPDATE_BONUS;
+
+
+function f_get_salary (
+  P_employee_id IN NUMBER  
+) RETURN NUMBER AS 
+v_salary emp_copy.salary%type;
+BEGIN   
+
+begin
+select salary into v_salary 
+  from emp_copy where 
+  employee_id = p_employee_id;
+exception when no_data_found then 
+    -- dbms_output.put_line('-' || SQLCODE||' - '||SQLERRM);
+    -- raise_application_error(-20500, 'no emp found');
+    raise e_no_employee_found;
+end;
+
+
+  return v_salary;
+end f_get_salary;  
+
+
+function f_get_salary (
+  P_first_name IN emp_copy.first_name%type,
+  P_last_name IN emp_copy.last_name%type
+) RETURN NUMBER AS 
+v_salary emp_copy.salary%type;
+v_employee_id emp_copy.employee_id%type;
+BEGIN   
+
+begin
+  select employee_id into v_employee_id
+      from emp_copy where 
+      first_name = p_first_name and
+      last_name  = p_last_name;
+exception when no_data_found then 
+    -- dbms_output.put_line('-' || SQLCODE||' - '||SQLERRM);
+    -- raise_application_error(-20501, 'no emp found');
+    raise e_no_employee_found;
+end;
+
+/*
+  dbms_output.put_line('bla' ||  sql%rowcount );
+  if sql%rowcount = 0 then
+    raise_application_error(-20500, 'no emp found');
+  end if;
+*/  
+  v_salary := f_get_salary(v_employee_id);
+  return v_salary;
+end f_get_salary;  
+
+function f_calc_tax (p_salary in emp_copy.salary%type) return number
+as
+v_tax number;
+begin
+v_tax := p_salary * TAX_PCT; -- get_num_val('TAX_PCT');
+return v_tax;
+end;
+
+begin
+    dbms_output.put_line('im Begin Block');
+    TAX_PCT := get_num_val('TAX_PCT');
+
+END PCK_EMPLOYEE;
+/
