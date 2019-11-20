@@ -1,8 +1,5 @@
 CREATE OR REPLACE PACKAGE PCK_EMPLOYEE AS 
 
-e_no_employee_found exception;
-pragma exception_init(e_no_employee_found, -20500);
-
 TAX_PCT number;
 STICHTAG date := to_date('2019-11-11', 'yyyy-mm-dd');
 SIGNATUR varchar2(50) := 'Some Text here';
@@ -41,13 +38,20 @@ return number;
 
 function f_incr return number;
 
+function f_get(
+  P_employee_id IN NUMBER  
+) RETURN TYPE_EMP_COPY_TABLE;
+
+function f_get_next_emp
+return number;
+
 END PCK_EMPLOYEE;
 /
 
 
 CREATE OR REPLACE PACKAGE BODY PCK_EMPLOYEE AS
 
-cursor c_emp is select * from emp_copy;
+cursor c_emp is select * from emp_copy where salary > 14000;
 
 INCR number := 0;
 
@@ -214,7 +218,7 @@ select salary into v_salary
 exception when no_data_found then 
     -- dbms_output.put_line('-' || SQLCODE||' - '||SQLERRM);
     -- raise_application_error(-20500, 'no emp found');
-    raise e_no_employee_found;
+    raise pck_definitions.e_no_employee_found;
 end;
 
 
@@ -238,7 +242,7 @@ begin
 exception when no_data_found then 
     -- dbms_output.put_line('-' || SQLCODE||' - '||SQLERRM);
     -- raise_application_error(-20501, 'no emp found');
-    raise e_no_employee_found;
+    raise pck_definitions.e_no_employee_found;
 end;
 
 /*
@@ -258,6 +262,60 @@ begin
 v_tax := p_salary * TAX_PCT; -- get_num_val('TAX_PCT');
 return v_tax;
 end;
+
+function f_get(
+  P_employee_id IN NUMBER  
+) RETURN TYPE_EMP_COPY_TABLE AS 
+v_emp_table TYPE_EMP_COPY_TABLE := TYPE_EMP_COPY_TABLE();
+v_row_emp_copy type_emp_copy_record;
+
+cursor c_emp is (select * from emp_copy where 
+  employee_id = 199);
+
+BEGIN   
+/*
+open c_emp;
+fetch c_emp into v_row_emp_copy;
+v_emp_table.extend;
+v_emp_table(1) := v_row_emp_copy;
+return v_emp_table;
+*/
+for r in (select * from emp_copy where 
+  employee_id = p_employee_id) loop
+  v_emp_table.extend;
+  v_emp_table(1) := type_emp_copy_record(
+     r.employee_id, 
+     r.first_name,
+     r.last_name,
+     r.salary,
+     r.hire_date,
+     r.department_id,
+     r.bonus
+     ); 
+  return v_emp_table;
+end loop;
+end f_get;
+
+
+function f_get_next_emp
+return number as
+r_emp c_emp%rowtype;
+begin
+
+if not c_emp%isopen then
+    open c_emp;    
+end if;
+
+fetch c_emp into r_emp;
+
+if c_emp%notfound then
+    close c_emp;
+    open c_emp;
+    fetch c_emp into r_emp;
+end if;
+
+return r_emp.employee_id;
+end f_get_next_emp;
 
 begin
     dbms_output.put_line('im Begin Block');
