@@ -1,0 +1,32 @@
+CREATE OR REPLACE PROCEDURE P_MIGRATE_EDUCATION AS 
+-- r_participant participant%rowtype;
+-- index by varchar2
+v_edu_id number;
+BEGIN
+
+for r_participant in (select * from participant) loop
+     for i in 1..r_participant.education.last loop    
+        DBMS_OUTPUT.PUT_LINE(i || ' ' || r_participant.education(i));
+        begin
+            insert into education(id,name) values (hr_seq.nextval,  r_participant.education(i));
+        EXCEPTION when dup_val_on_index then
+            null;
+        end;
+     end loop;
+end loop;
+
+for r_participant in (select * from participant) loop
+    for i in 1..r_participant.education.last loop        
+        select id into v_edu_id from education
+            where name = r_participant.education(i);
+        DBMS_OUTPUT.PUT_LINE(r_participant.education(i) || ' ' || v_edu_id);     
+        begin
+            insert into participant_x_education (par_id, edu_id)
+            values (r_participant.id, v_edu_id);
+        EXCEPTION when dup_val_on_index then
+            null;
+        end;
+    end loop; 
+end loop;
+
+END P_MIGRATE_EDUCATION;
