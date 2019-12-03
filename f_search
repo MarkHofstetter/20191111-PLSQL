@@ -1,0 +1,47 @@
+function f_search (
+  P_first_name IN emp_copy.first_name%type default null,
+  P_last_name IN emp_copy.last_name%type default null
+) return t_number AS 
+
+v_employees t_number := t_number();
+
+v_sql varchar2(1000);
+v_statement_cursor integer;
+v_employee_id number;
+v_rows_selected number;
+v_c number := 1;
+begin
+v_sql := 'select employee_id from employees where '||chr(10);
+if p_first_name is not null then
+   -- v_sql := v_sql || ' first_name = '''||p_first_name||'''';
+   v_sql := v_sql || ' first_name = :b_first_name and '||chr(10);
+end if;
+
+if p_last_name is not null then   
+   v_sql := v_sql || ' last_name = :b_last_name and '||chr(10);
+end if;
+
+v_sql := v_sql || ' 1=1';
+
+dbms_output.put_line(v_sql);
+
+v_statement_cursor := dbms_sql.open_cursor;
+dbms_sql.parse(v_statement_cursor, v_sql, dbms_sql.native);
+dbms_sql.define_column(v_statement_cursor, 1, v_employee_id);
+
+if p_first_name is not null then   
+dbms_sql.bind_variable(v_statement_cursor, 'b_first_name', p_first_name);
+end if;
+if p_last_name is not null then   
+    dbms_sql.bind_variable(v_statement_cursor, 'b_last_name',  p_last_name);
+end if;
+
+v_rows_selected := dbms_sql.execute(v_statement_cursor);
+
+while dbms_sql.fetch_rows(v_statement_cursor)>0 loop
+    dbms_sql.column_value(v_statement_cursor, 1, v_employee_id);
+    v_employees.extend;
+    v_employees(v_c) := v_employee_id;
+    v_c := v_c + 1;    
+end loop;
+return v_employees;
