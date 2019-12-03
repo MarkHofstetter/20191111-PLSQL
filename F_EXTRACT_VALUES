@@ -1,0 +1,36 @@
+/*
+
+'Run thept to create HIT_VALUE="143" and update your HIT_VALUE="12" Instance HIT_VALUE="11" Administrat'
+
+resultat:
+143
+12
+11
+
+select f_extract_values(
+p_haystack => 'Run thept to create HIT_VALUE="143" and update your HIT_VALUE="12" Instance HIT_VALUE="11" Adm',
+p_needle   => 'HIT_VALUE'
+) n from dual;
+
+*/
+CREATE OR REPLACE FUNCTION F_EXTRACT_VALUES 
+(
+  P_HAYSTACK IN VARCHAR2,
+  P_NEEDLE   IN VARCHAR2
+) RETURN t_number AS 
+
+v_table_number t_number := t_number();
+v_c number := 1;
+v_found number ;
+BEGIN
+
+while true loop
+    v_found := to_number(regexp_substr(p_haystack, p_needle||'="(.*?)"', 1, v_c, 'i', 1 ));
+    exit when v_found is null;
+    v_table_number.extend;
+    v_table_number(v_c) := v_found;
+    v_c := v_c + 1;    
+end loop;    
+
+return v_table_number;
+END F_EXTRACT_VALUES;
